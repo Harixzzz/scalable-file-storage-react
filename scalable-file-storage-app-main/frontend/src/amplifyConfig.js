@@ -6,18 +6,11 @@ export function configureAmplify() {
   Amplify.configure({
     Auth: {
       Cognito: {
-        region: awsConfig.region,
         userPoolId: awsConfig.userPoolId,
-        userPoolClientId: awsConfig.userPoolWebClientId,
-        loginWith: {
-          oauth: {
-            domain: awsConfig.oauth.domain,
-            scopes: awsConfig.oauth.scope,
-            redirectSignIn: awsConfig.oauth.redirectSignIn,
-            redirectSignOut: awsConfig.oauth.redirectSignOut,
-            responseType: awsConfig.oauth.responseType,
-          },
-        },
+        userPoolClientId: awsConfig.userPoolClientId,
+        identityPoolId: awsConfig.identityPoolId,
+        loginWith: { email: true },
+        allowGuestAccess: false,
       },
     },
   });

@@ -1,61 +1,49 @@
-// components/UploadSection.jsx
+// src/components/UploadSection.jsx
 import React, { useState } from "react";
+import { uploadFileToS3 } from "../services/s3FileService";
 
-function UploadSection() {
-  const [selectedFile, setSelectedFile] = useState(null);
+export default function UploadSection({ idToken, onUploaded }) {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const handleFileChange = (event) => {
-    setSelectedFile(event.target.files?.[0] ?? null);
-  };
+  const handleUpload = async () => {
+    if (!file) return;
 
-  const handleUpload = () => {
-    if (!selectedFile) {
-      alert("Please choose a file first.");
-      return;
+    try {
+      setBusy(true);
+      setStatus("Uploading...");
+      await uploadFileToS3(idToken, file);
+      setStatus("✅ Upload success");
+      setFile(null);
+      onUploaded?.();
+    } catch (e) {
+      console.error(e);
+      setStatus("❌ Upload failed (check Identity Pool + S3 CORS + IAM)");
+    } finally {
+      setBusy(false);
     }
-
-    // TODO: hook this up to real S3 upload
-    console.log("Uploading file (stub):", selectedFile.name);
-    alert(`(Stub) Uploading: ${selectedFile.name}`);
   };
 
   return (
-    <section style={styles.card}>
-      <h2>Upload file</h2>
-      <p>Select a file and click “Upload”. Next we’ll send it to S3.</p>
+    <div className="card">
+      <h2>Upload a File</h2>
+      <p className="muted">Select a file and upload to your personal folder in S3.</p>
 
-      <input type="file" onChange={handleFileChange} />
-
-      <div style={{ marginTop: "0.75rem" }}>
-        <button style={styles.primaryButton} onClick={handleUpload}>
-          Upload
+      <div className="row">
+        <input
+          type="file"
+          onChange={(e) => {
+            setStatus("");
+            setFile(e.target.files?.[0] || null);
+          }}
+        />
+        <button className="btn primary" onClick={handleUpload} disabled={!file || busy}>
+          {busy ? "Uploading..." : "Upload"}
         </button>
-        {selectedFile && (
-          <span style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>
-            Selected: <strong>{selectedFile.name}</strong>
-          </span>
-        )}
       </div>
-    </section>
+
+      {status && <div className={`status ${status.includes("success") ? "ok" : status.includes("Uploading") ? "" : "bad"}`}>{status}</div>}
+    </div>
   );
 }
-
-const styles = {
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    padding: "1rem",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    backgroundColor: "#fff",
-  },
-  primaryButton: {
-    padding: "0.4rem 0.9rem",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "#2563EB",
-    color: "#fff",
-    cursor: "pointer",
-  },
-};
-
-export default UploadSection;

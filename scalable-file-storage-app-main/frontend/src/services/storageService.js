@@ -1,59 +1,46 @@
-// src/services/storageService.js
-import { uploadData, list, remove } from "aws-amplify/storage";
+import {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+} from "@aws-sdk/client-s3";
 
-// Decode JWT to extract "sub"
-function getSubFromIdToken(idToken) {
-  const payloadPart = idToken.split(".")[1];
-  const fixed = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
-  const json = atob(fixed);
-  const payload = JSON.parse(json);
-  return payload.sub;
+import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
+import awsConfig from "../aws-config";
+
+function getS3Client(idToken) {
+  return new S3Client({
+    region: awsConfig.region,
+    credentials: fromCognitoIdentityPool({
+      identityPoolId: awsConfig.identityPoolId,
+      logins: {
+        [`cognito-idp.${awsConfig.region}.amazonaws.com/${awsConfig.userPoolId}`]:
+          idToken,
+      },
+    }),
+  });
 }
 
-const bucketOptions = {
-  bucket: {
-    bucketName: "scalable-web-app-file-storage",
-    region: "us-east-2",
-  },
-};
+export async function uploadFileToS3(file, idToken) {
+  const s3 = getS3Client(idToken);
 
-export function getUserSub(idToken) {
-  return getSubFromIdToken(idToken);
-}
-
-export async function uploadUserFile(idToken, file) {
-  const sub = getSubFromIdToken(idToken);
-  const path = `users/${sub}/${file.name}`;
-
-  await uploadData({
-    path,
-    data: file,
-    options: bucketOptions,
+  const command = new PutObjectCommand({
+    Bucket: awsConfig.s3Bucket,
+    Key: `uploads/${Date.now()}-${file.name}`,
+    Body: file,
+    ContentType: file.type,
   });
 
-  return path;
+  await s3.send(command);
 }
 
-export async function listUserFiles(idToken) {
-  const sub = getSubFromIdToken(idToken);
-  const prefix = `users/${sub}/`;
+export async function listFiles(idToken) {
+  const s3 = getS3Client(idToken);
 
-  const { items } = await list({
-    path: prefix,
-    options: bucketOptions,
+  const command = new ListObjectsV2Command({
+    Bucket: awsConfig.s3Bucket,
+    Prefix: "uploads/",
   });
 
-  return (items || []).map((item) => ({
-    key: item.path,
-    name: item.path.replace(prefix, ""),
-    lastModified: item.lastModified,
-    size: item.size,
-  }));
-}
-
-export async function deleteUserFile(idToken, key) {
-  await remove({
-    path: key,
-    options: bucketOptions,
-  });
+  const data = await s3.send(command);
+  return data.Contents || [];
 }

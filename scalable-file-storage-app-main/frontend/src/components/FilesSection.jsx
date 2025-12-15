@@ -1,97 +1,95 @@
-// components/FilesSection.jsx
-import React, { useState } from "react";
+// src/components/FilesSection.jsx
+import React, { useEffect, useState } from "react";
+import { deleteFile, getDownloadUrl, listUserFiles } from "../services/s3FileService";
 
-function FilesSection() {
-  const [files, setFiles] = useState([
-    // Example stub data. Replace with real S3 data later.
-    // { key: "example.txt", size: "2 KB" },
-  ]);
+function formatBytes(bytes = 0) {
+  const sizes = ["B", "KB", "MB", "GB"];
+  if (bytes === 0) return "0 B";
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+}
 
-  const handleRefresh = () => {
-    // TODO: call S3 list API here
-    console.log("Refreshing file list (stub)...");
-    alert("(Stub) This will load your files from S3.");
+export default function FilesSection({ idToken, refreshKey }) {
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    try {
+      setBusy(true);
+      setError("");
+      const items = await listUserFiles(idToken);
+      setFiles(items);
+    } catch (e) {
+      console.error(e);
+      setError("Failed to list files ❌ (check Identity Pool + IAM + S3 CORS)");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleDelete = (key) => {
-    // TODO: call S3 delete API here
-    console.log("Deleting file (stub):", key);
-    alert(`(Stub) Deleting: ${key}`);
-    setFiles((prev) => prev.filter((f) => f.key !== key));
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
+
+  const onDelete = async (key) => {
+    if (!window.confirm("Delete this file?")) return;
+    try {
+      await deleteFile(idToken, key);
+      await load();
+    } catch (e) {
+      console.error(e);
+      alert("Delete failed. Check permissions.");
+    }
+  };
+
+  const onDownload = async (key) => {
+    try {
+      const url = await getDownloadUrl(idToken, key);
+      window.open(url, "_blank");
+    } catch (e) {
+      console.error(e);
+      alert("Download failed.");
+    }
   };
 
   return (
-    <section style={styles.card}>
-      <h2>Your files</h2>
-
-      <div style={{ marginBottom: "0.75rem" }}>
-        <button style={styles.secondaryButton} onClick={handleRefresh}>
-          Refresh list
+    <div className="card">
+      <div className="cardHeader">
+        <div>
+          <h2>My Files</h2>
+          <p className="muted">Files stored in your S3 folder.</p>
+        </div>
+        <button className="btn" onClick={load} disabled={busy}>
+          {busy ? "Loading..." : "Refresh"}
         </button>
       </div>
 
-      {files.length === 0 ? (
-        <p>No files yet. Upload something to get started.</p>
+      {error && <div className="status bad">{error}</div>}
+
+      {!files.length && !error ? (
+        <div className="muted">No files uploaded yet.</div>
       ) : (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th>File name</th>
-              <th>Size</th>
-              <th style={{ width: "120px" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {files.map((file) => (
-              <tr key={file.key}>
-                <td>{file.key}</td>
-                <td>{file.size}</td>
-                <td>
-                  <button
-                    style={styles.dangerButton}
-                    onClick={() => handleDelete(file.key)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table">
+          {files.map((f) => (
+            <div className="tr" key={f.key}>
+              <div className="td fileName" title={f.key}>
+                {f.key.split("/").pop()}
+              </div>
+              <div className="td">{formatBytes(f.size)}</div>
+              <div className="td actions">
+                <button className="btn small" onClick={() => onDownload(f.key)}>
+                  Download
+                </button>
+                <button className="btn small danger" onClick={() => onDelete(f.key)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
-    </section>
+    </div>
   );
 }
-
-const styles = {
-  card: {
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    padding: "1rem",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    backgroundColor: "#fff",
-  },
-  secondaryButton: {
-    padding: "0.4rem 0.9rem",
-    borderRadius: "4px",
-    border: "1px solid #2563EB",
-    backgroundColor: "#fff",
-    color: "#2563EB",
-    cursor: "pointer",
-  },
-  dangerButton: {
-    padding: "0.3rem 0.7rem",
-    borderRadius: "4px",
-    border: "none",
-    backgroundColor: "#DC2626",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: "0.85rem",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-};
-
-export default FilesSection;

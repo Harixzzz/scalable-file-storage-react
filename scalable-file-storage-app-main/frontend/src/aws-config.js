@@ -10,5 +10,5 @@ export const awsConfig = {
   s3Bucket: "harishraj-madhavan-project-s3",
 
   // ✅ Hosted UI domain (must match Cognito > Domain page EXACTLY)
-  cognitoDomain: "https://us-east-1-0o99e553n.auth.us-east-1.amazoncognito.com",
+  cognitoDomain: "https://us-east-1o099e553n.auth.us-east-1.amazoncognito.com",
 };
